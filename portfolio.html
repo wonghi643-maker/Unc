@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HOLDINGS — Terminal View</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#0A0D10;
+    --panel:#12161B;
+    --panel-2:#171C22;
+    --line:#262D35;
+    --amber:#FFB000;
+    --amber-dim:#B8830A;
+    --up:#3ADC84;
+    --down:#FF5C5C;
+    --paper:#E9E7DF;
+    --muted:#8A93A0;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --sans: 'IBM Plex Sans', system-ui, sans-serif;
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--ink);
+    color:var(--paper);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important;}
+  }
+
+  a{color:inherit;}
+  ::selection{background:var(--amber); color:#000;}
+
+  /* ---------- Ticker tape ---------- */
+  .ticker-wrap{
+    position:sticky; top:0; z-index:50;
+    background:#000;
+    border-bottom:1px solid var(--line);
+    overflow:hidden;
+    white-space:nowrap;
+    padding:9px 0;
+  }
+  .ticker-track{
+    display:inline-block;
+    animation:scroll-left 42s linear infinite;
+    font-family:var(--mono);
+    font-size:13px;
+    letter-spacing:0.02em;
+  }
+  .ticker-item{display:inline-flex; align-items:center; margin-right:36px;}
+  .ticker-item .sym{color:var(--paper); font-weight:600; margin-right:8px;}
+  .ticker-item .px{color:var(--muted); margin-right:8px;}
+  .dot{width:6px; height:6px; border-radius:50%; margin-right:8px; display:inline-block;}
+  .dot.up{background:var(--up); box-shadow:0 0 6px var(--up);}
+  .dot.down{background:var(--down); box-shadow:0 0 6px var(--down);}
+  .dot.flat{background:var(--amber); box-shadow:0 0 6px var(--amber);}
+  @keyframes scroll-left{
+    from{transform:translateX(0);}
+    to{transform:translateX(-50%);}
+  }
+
+  /* ---------- Header / hero ---------- */
+  header.hero{
+    max-width:1040px; margin:0 auto;
+    padding:76px 24px 56px;
+    border-bottom:1px solid var(--line);
+  }
+  .eyebrow{
+    font-family:var(--mono); font-size:12px; letter-spacing:0.18em;
+    color:var(--amber); text-transform:uppercase; margin-bottom:18px;
+    display:flex; align-items:center; gap:10px;
+  }
+  .eyebrow::before{content:''; width:24px; height:1px; background:var(--amber-dim);}
+  h1{
+    font-family:var(--mono); font-weight:700;
+    font-size:clamp(2.1rem, 5vw, 3.6rem);
+    line-height:1.05; letter-spacing:-0.01em; margin:0 0 22px;
+    color:var(--paper);
+  }
+  h1 span{color:var(--amber);}
+  .hero-sub{
+    font-size:17px; line-height:1.65; color:var(--muted);
+    max-width:640px; margin:0 0 32px;
+  }
+  .hero-stats{display:flex; gap:36px; flex-wrap:wrap; font-family:var(--mono);}
+  .hero-stat .num{font-size:26px; font-weight:600; color:var(--paper); display:block;}
+  .hero-stat .lbl{font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.1em;}
+
+  /* ---------- Section shell ---------- */
+  section{max-width:1040px; margin:0 auto; padding:64px 24px;}
+  .section-head{margin-bottom:32px;}
+  .section-tag{
+    font-family:var(--mono); font-size:12px; color:var(--amber);
+    letter-spacing:0.15em; text-transform:uppercase; margin-bottom:10px;
+  }
+  .section-title{font-family:var(--mono); font-size:26px; font-weight:600; margin:0 0 6px; color:var(--paper);}
+  .section-desc{color:var(--muted); font-size:15px; max-width:620px; line-height:1.6;}
+
+  /* ---------- Briefing / market conditions ---------- */
+  .briefing{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-left:3px solid var(--amber);
+    border-radius:2px;
+    padding:28px 28px;
+  }
+  .briefing-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:24px; margin-top:8px;}
+  .brief-item{padding-top:14px; border-top:1px solid var(--line);}
+  .brief-item h4{
+    font-family:var(--mono); font-size:13px; color:var(--amber);
+    margin:0 0 8px; letter-spacing:0.03em;
+  }
+  .brief-item p{font-size:14px; line-height:1.6; color:#C7CBD1; margin:0;}
+
+  /* ---------- Holdings list ---------- */
+  .holding{
+    border:1px solid var(--line);
+    background:var(--panel);
+    border-radius:2px;
+    margin-bottom:18px;
+    overflow:hidden;
+  }
+  .holding-head{
+    display:flex; align-items:flex-start; gap:20px;
+    padding:22px 24px;
+    cursor:pointer;
+    user-select:none;
+  }
+  .holding-head:focus-visible{outline:2px solid var(--amber); outline-offset:-2px;}
+  .rank{
+    font-family:var(--mono); font-size:13px; color:var(--ink);
+    background:var(--amber); width:30px; height:30px;
+    border-radius:2px; display:flex; align-items:center; justify-content:center;
+    flex:none; font-weight:700; margin-top:2px;
+  }
+  .holding-id{flex:1; min-width:0;}
+  .holding-top{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap;}
+  .ticker-sym{font-family:var(--mono); font-weight:700; font-size:19px; color:var(--paper);}
+  .company-name{font-size:15px; color:var(--muted);}
+  .tag{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:0.05em;
+    color:var(--amber-dim); border:1px solid var(--amber-dim);
+    padding:2px 7px; border-radius:20px; margin-top:8px; display:inline-block;
+  }
+  .holding-price{
+    text-align:right; font-family:var(--mono); flex:none;
+  }
+  .price-now{font-size:19px; font-weight:600; color:var(--paper);}
+  .price-trend{font-size:12px; margin-top:4px;}
+  .price-trend.up{color:var(--up);}
+  .price-trend.down{color:var(--down);}
+  .price-trend.flat{color:var(--amber);}
+  .chev{
+    font-family:var(--mono); color:var(--muted); font-size:18px;
+    flex:none; transition:transform 0.25s ease; margin-top:4px;
+  }
+  .holding.open .chev{transform:rotate(180deg);}
+
+  .holding-body{
+    max-height:0; overflow:hidden;
+    transition:max-height 0.35s ease;
+    border-top:1px solid transparent;
+  }
+  .holding.open .holding-body{border-top:1px solid var(--line);}
+  .holding-body-inner{padding:22px 24px 26px;}
+
+  .stat-row{
+    display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+    gap:16px; margin-bottom:22px; font-family:var(--mono);
+  }
+  .stat-box .v{font-size:16px; font-weight:600; color:var(--paper);}
+  .stat-box .k{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; margin-top:3px;}
+
+  .holding-notes{font-size:14.5px; line-height:1.7; color:#C7CBD1;}
+  .holding-notes p{margin:0 0 12px;}
+  .holding-notes p:last-child{margin-bottom:0;}
+  .holding-notes strong{color:var(--paper);}
+
+  /* ---------- Concentration callout ---------- */
+  .callout{
+    background:linear-gradient(135deg, rgba(255,176,0,0.08), rgba(255,176,0,0.02));
+    border:1px solid var(--amber-dim);
+    border-radius:2px;
+    padding:28px;
+    font-size:15px; line-height:1.7; color:#DCD9CF;
+  }
+  .callout strong{color:var(--amber);}
+
+  /* ---------- Footer ---------- */
+  footer{
+    max-width:1040px; margin:0 auto; padding:40px 24px 80px;
+    border-top:1px solid var(--line);
+    font-family:var(--mono); font-size:12px; color:var(--muted); line-height:1.7;
+  }
+
+  /* ---------- Snapshot badge ---------- */
+  .snapshot-badge{
+    display:inline-flex; align-items:center; gap:8px;
+    font-family:var(--mono); font-size:11.5px; color:var(--muted);
+    border:1px solid var(--line); border-radius:20px;
+    padding:6px 12px; margin-top:22px;
+  }
+  .snapshot-badge .pulse{
+    width:7px; height:7px; border-radius:50%; background:var(--amber);
+    box-shadow:0 0 8px var(--amber);
+  }
+  .snapshot-badge strong{color:var(--paper); font-weight:600;}
+
+  /* ---------- Chart panels ---------- */
+  .chart-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+  @media (max-width:760px){.chart-grid{grid-template-columns:1fr;}}
+  .chart-card{
+    background:var(--panel); border:1px solid var(--line); border-radius:2px;
+    padding:22px 22px 12px;
+  }
+  .chart-card h4{
+    font-family:var(--mono); font-size:12.5px; color:var(--amber);
+    margin:0 0 4px; letter-spacing:0.04em;
+  }
+  .chart-card .sub{font-size:12px; color:var(--muted); margin-bottom:14px;}
+  .chart-card canvas{max-height:280px;}
+
+  /* ---------- Price-range visual ---------- */
+  .range-block{margin-bottom:24px;}
+  .range-label-row{
+    display:flex; justify-content:space-between; font-family:var(--mono);
+    font-size:11px; color:var(--muted); margin-bottom:8px;
+  }
+  .range-track{
+    position:relative; height:6px; border-radius:3px;
+    background:linear-gradient(90deg, var(--down), var(--amber-dim) 50%, var(--up));
+    opacity:0.35;
+  }
+  .range-fill-marker{
+    position:absolute; top:50%; width:14px; height:14px;
+    background:var(--paper); border:2px solid var(--ink); border-radius:50%;
+    transform:translate(-50%,-50%);
+  }
+  .range-target-marker{
+    position:absolute; top:-10px; width:2px; height:26px; background:var(--amber);
+  }
+  .range-target-marker::after{
+    content:'TARGET'; position:absolute; top:-16px; left:50%; transform:translateX(-50%);
+    font-family:var(--mono); font-size:9px; color:var(--amber); white-space:nowrap;
+  }
+  .range-foot{
+    display:flex; justify-content:space-between; font-family:var(--mono);
+    font-size:10.5px; color:var(--muted); margin-top:22px;
+  }
+
+  /* ---------- Decision support ---------- */
+  .decision-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:24px;
+  }
+  @media (max-width:560px){.decision-grid{grid-template-columns:1fr;}}
+  .decision-box{
+    border:1px solid var(--line); border-radius:2px; padding:16px;
+    background:var(--panel-2);
+  }
+  .decision-box.bull{border-left:3px solid var(--up);}
+  .decision-box.bear{border-left:3px solid var(--down);}
+  .decision-box h5{
+    font-family:var(--mono); font-size:11.5px; margin:0 0 8px; letter-spacing:0.06em;
+  }
+  .decision-box.bull h5{color:var(--up);}
+  .decision-box.bear h5{color:var(--down);}
+  .decision-box p{font-size:13.5px; line-height:1.6; color:#C7CBD1; margin:0;}
+
+  .meta-row{
+    display:flex; gap:20px; flex-wrap:wrap; margin-bottom:24px;
+    font-family:var(--mono); font-size:12px;
+  }
+  .meta-pill{
+    border:1px solid var(--line); border-radius:20px; padding:6px 14px;
+    color:var(--muted);
+  }
+  .meta-pill strong{color:var(--paper);}
+  .meta-pill.risk-extreme strong{color:var(--down);}
+  .meta-pill.risk-high strong{color:#FF9E4A;}
+  .meta-pill.risk-moderate strong{color:var(--up);}
+  .meta-pill.upside strong{color:var(--up);}
+  .meta-pill.downside strong{color:var(--down);}
+
+  /* ---------- News timeline ---------- */
+  .news-block{margin-top:28px; border-top:1px solid var(--line); padding-top:22px;}
+  .news-head{display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:16px;}
+  .news-head h5{font-family:var(--mono); font-size:12.5px; color:var(--amber); margin:0; letter-spacing:0.06em;}
+  .news-filters{display:flex; gap:6px; flex-wrap:wrap;}
+  .news-filter-btn{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:0.02em;
+    background:transparent; border:1px solid var(--line); color:var(--muted);
+    padding:5px 10px; border-radius:20px; cursor:pointer; transition:all 0.15s ease;
+  }
+  .news-filter-btn:hover{border-color:var(--amber-dim); color:var(--paper);}
+  .news-filter-btn.active{background:var(--amber); border-color:var(--amber); color:#000; font-weight:600;}
+  .news-filter-btn:focus-visible{outline:2px solid var(--amber); outline-offset:2px;}
+
+  .news-list{position:relative; padding-left:20px;}
+  .news-list::before{
+    content:''; position:absolute; left:4px; top:4px; bottom:4px; width:1px; background:var(--line);
+  }
+  .news-entry{position:relative; padding-bottom:16px;}
+  .news-entry:last-child{padding-bottom:0;}
+  .news-entry::before{
+    content:''; position:absolute; left:-20px; top:5px; width:8px; height:8px;
+    border-radius:50%; background:var(--amber); border:2px solid var(--ink);
+  }
+  .news-date{
+    font-family:var(--mono); font-size:10.5px; color:var(--amber-dim);
+    letter-spacing:0.04em; margin-bottom:4px; display:block;
+  }
+  .news-text{font-size:13.5px; line-height:1.75; color:#C7CBD1; max-width:68ch;}
+  .news-entry.hidden{display:none;}
+  .news-empty{font-size:13px; color:var(--muted); font-style:italic;}
+
+  .news-source-row{margin-top:18px; display:flex; gap:10px; flex-wrap:wrap;}
+  .news-source-link{
+    font-family:var(--mono); font-size:11px; color:var(--amber-dim);
+    border:1px solid var(--line); border-radius:20px; padding:5px 12px;
+    text-decoration:none; display:inline-flex; align-items:center; gap:6px;
+    transition:all 0.15s ease;
+  }
+  .news-source-link:hover{border-color:var(--amber); color:var(--amber);}
+  .news-entry-link{
+    font-family:var(--mono); font-size:11px; color:var(--amber-dim);
+    text-decoration:none; display:inline-block; margin-top:4px;
+  }
+  .news-entry-link:hover{color:var(--amber); text-decoration:underline;}
+  .update-note{
+    margin-top:16px; padding:12px 14px; background:rgba(255,176,0,0.06);
+    border:1px solid var(--amber-dim); border-radius:2px;
+    font-size:12px; color:var(--muted); line-height:1.6;
+  }
+  .update-note strong{color:var(--amber);}
+
+  /* ---------- Live data panel ---------- */
+  .live-panel{
+    background:var(--panel); border:1px solid var(--amber-dim); border-radius:2px;
+    padding:22px 24px; margin-bottom:56px;
+  }
+  .live-panel-head{display:flex; align-items:center; gap:10px; margin-bottom:10px;}
+  .live-panel-head h3{font-family:var(--mono); font-size:14px; color:var(--amber); margin:0; letter-spacing:0.04em;}
+  .live-status-dot{width:8px; height:8px; border-radius:50%; background:var(--muted);}
+  .live-status-dot.on{background:var(--up); box-shadow:0 0 8px var(--up); animation:pulse 1.6s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
+  .live-panel p{font-size:13.5px; color:var(--muted); line-height:1.6; margin:0 0 16px;}
+  .live-form{display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+  .live-form input{
+    flex:1; min-width:220px; background:var(--ink); border:1px solid var(--line);
+    color:var(--paper); font-family:var(--mono); font-size:13px;
+    padding:10px 12px; border-radius:2px;
+  }
+  .live-form input:focus{outline:2px solid var(--amber); outline-offset:-1px;}
+  .live-form button{
+    font-family:var(--mono); font-size:12.5px; font-weight:600;
+    background:var(--amber); color:#000; border:none; border-radius:2px;
+    padding:10px 18px; cursor:pointer;
+  }
+  .live-form button:hover{background:#FFC640;}
+  .live-form button:focus-visible{outline:2px solid var(--paper); outline-offset:2px;}
+  .live-form button.secondary{background:transparent; border:1px solid var(--line); color:var(--paper);}
+  .live-meta{font-family:var(--mono); font-size:11.5px; color:var(--muted); margin-top:12px;}
+  .live-meta strong{color:var(--paper);}
+  .live-badge{
+    font-family:var(--mono); font-size:9.5px; letter-spacing:0.05em;
+    padding:2px 6px; border-radius:10px; margin-left:8px; vertical-align:middle;
+  }
+  .live-badge.live{background:rgba(58,220,132,0.15); color:var(--up); border:1px solid var(--up);}
+  .live-badge.snap{background:rgba(138,147,160,0.12); color:var(--muted); border:1px solid var(--line);}
+
+  /* ---------- Quick links bar ---------- */
+  .quicklinks{
+    display:flex; gap:10px; flex-wrap:wrap; margin-top:20px;
+  }
+  .quicklink{
+    font-family:var(--mono); font-size:11.5px; color:var(--paper);
+    border:1px solid var(--line); border-radius:20px; padding:7px 14px;
+    text-decoration:none; display:inline-flex; align-items:center; gap:6px;
+    transition:all 0.15s ease; background:var(--panel);
+  }
+  .quicklink:hover{border-color:var(--amber); color:var(--amber);}
+
+  /* ---------- Live news feed ---------- */
+  .live-news-wrap{
+    margin-bottom:18px;
+    max-height:640px;
+    overflow-y:auto;
+    padding-right:6px;
+  }
+  .live-news-wrap::-webkit-scrollbar{width:6px;}
+  .live-news-wrap::-webkit-scrollbar-track{background:transparent;}
+  .live-news-wrap::-webkit-scrollbar-thumb{background:var(--line); border-radius:3px;}
+  .live-news-empty{
+    font-size:12.5px; color:var(--muted); font-style:italic;
+    padding:12px 14px; border:1px dashed var(--line); border-radius:2px;
+  }
+  .live-news-tag{
+    font-family:var(--mono); font-size:9.5px; letter-spacing:0.06em;
+    background:rgba(58,220,132,0.15); color:var(--up); border:1px solid var(--up);
+    padding:2px 7px; border-radius:10px; margin-left:8px;
+  }
+  .live-news-item{
+    border:1px solid var(--line); border-left:2px solid var(--up);
+    border-radius:2px; padding:14px 16px; margin-bottom:12px;
+    background:var(--panel-2);
+  }
+  .live-news-item .lni-top{
+    display:flex; justify-content:space-between; gap:10px; margin-bottom:7px;
+    font-family:var(--mono); font-size:10px; color:var(--muted); flex-wrap:wrap;
+  }
+  .live-news-item .lni-source{color:var(--amber-dim); text-transform:uppercase;}
+  .live-news-item a.lni-headline{
+    display:block; color:var(--paper); font-size:15px; font-weight:600;
+    text-decoration:none; line-height:1.4; margin-bottom:8px;
+  }
+  .live-news-item a.lni-headline:hover{color:var(--amber); text-decoration:underline;}
+  .live-news-item .lni-summary{
+    font-size:13.5px; color:#B9BEC6; line-height:1.75;
+    font-family:var(--sans);
+  }
+  .live-news-item a.lni-link{
+    display:inline-block; margin-top:10px; font-family:var(--mono); font-size:10.5px;
+    color:var(--amber-dim); text-decoration:none;
+  }
+  .live-news-item a.lni-link:hover{color:var(--amber); text-decoration:underline;}
+
+  /* ---------- Website chips per card ---------- */
+  .website-row{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:22px;}
+  .website-chip{
+    font-family:var(--mono); font-size:11px; color:var(--paper);
+    border:1px solid var(--line); border-radius:20px; padding:6px 13px;
+    text-decoration:none; display:inline-flex; align-items:center; gap:6px;
+    background:var(--panel-2); transition:all 0.15s ease;
+  }
+  .website-chip:hover{border-color:var(--amber); color:var(--amber);}
+  .website-chip.official{border-color:var(--amber-dim); color:var(--amber-dim);}
+
+  @media (max-width:600px){
+    .holding-head{gap:12px; padding:18px 16px;}
+    .holding-body-inner{padding:18px 16px 22px;}
+    header.hero{padding:56px 18px 40px;}
+    section{padding:48px 18px;}
+    .company-name{display:block;}
+  }
+</style>
+</head>
+<body>
+
+<div class="ticker-wrap" aria-hidden="true">
+  <div class="ticker-track" id="tickerTrack"></div>
+</div>
+
+<header class="hero">
+  <div class="eyebrow">Portfolio Snapshot · July 2026</div>
+  <h1>Nine positions.<br>One <span>thesis</span>: AI infrastructure & crypto proxies.</h1>
+  <p class="hero-sub">Ranked from largest to smallest holding. Every name on this sheet is, directly or indirectly, a bet on the AI capital-expenditure buildout, crypto sentiment, or both — there is no defensive ballast in this book.</p>
+  <div class="hero-stats">
+    <div class="hero-stat"><span class="num">9</span><span class="lbl">Holdings</span></div>
+    <div class="hero-stat"><span class="num">0</span><span class="lbl">Defensive names</span></div>
+    <div class="hero-stat"><span class="num">2026</span><span class="lbl">SPCX IPO year</span></div>
+  </div>
+  <div class="snapshot-badge">
+    <span class="pulse"></span>
+    Data snapshot: <strong>July 3, 2026</strong> — a point-in-time read, not a live feed. Prices will have moved.
+  </div>
+  <div class="quicklinks">
+    <a class="quicklink" href="https://finance.yahoo.com/" target="_blank" rel="noopener noreferrer">↗ Yahoo Finance</a>
+    <a class="quicklink" href="https://www.cnbc.com/markets/" target="_blank" rel="noopener noreferrer">↗ CNBC Markets</a>
+    <a class="quicklink" href="https://www.marketwatch.com/" target="_blank" rel="noopener noreferrer">↗ MarketWatch</a>
+    <a class="quicklink" href="https://www.google.com/finance/" target="_blank" rel="noopener noreferrer">↗ Google Finance</a>
+    <a class="quicklink" href="https://www.tradingview.com/" target="_blank" rel="noopener noreferrer">↗ TradingView</a>
+    <a class="quicklink" href="https://finviz.com/" target="_blank" rel="noopener noreferrer">↗ Finviz</a>
+  </div>
+</header>
+
+<section id="update-explainer" style="padding-top:0; padding-bottom:0;">
+  <div class="briefing" style="margin-bottom:56px;">
+    <div class="section-tag" style="margin-bottom:12px;">How this page stays current</div>
+    <p style="font-size:14.5px; line-height:1.7; color:#C7CBD1; margin:0 0 14px;">
+      This page can't fetch live prices or news on its own — it's a static file with no server or scheduled job behind it, so it has no way to reach out to a market-data or news feed by itself. Two real ways to keep it fresh:
+    </p>
+    <p style="font-size:14.5px; line-height:1.7; color:#C7CBD1; margin:0 0 14px;">
+      <strong style="color:var(--amber);">1. Ask for a manual refresh.</strong> Come back anytime and ask Claude to re-research these tickers and rebuild the page — that's a normal, on-demand request.
+    </p>
+    <p style="font-size:14.5px; line-height:1.7; color:#C7CBD1; margin:0;">
+      <strong style="color:var(--amber);">2. Automate it with Claude Cowork.</strong> In the Claude Desktop app, Cowork supports scheduled tasks (daily, weekly, etc.) — you could set one up with a prompt like "research my 9 holdings and rebuild my portfolio page," and it'll run on that cadence whenever your computer's on and Desktop is open. Each stock card below also links out to live, real-time ticker pages for current price and news.
+    </p>
+  </div>
+</section>
+
+<section id="live-data" style="padding-top:0;">
+  <div class="live-panel">
+    <div class="live-panel-head">
+      <span class="live-status-dot" id="liveDot"></span>
+      <h3 id="liveStatusText">LIVE PRICES: NOT CONNECTED</h3>
+    </div>
+    <p>Paste a free Finnhub API key below to pull real quotes <strong style="color:var(--paper);">and up to 25 full news articles per ticker</strong> (last 30 days, with full summaries and direct links, not just headlines) — prices refresh every 15 seconds, news every 60 seconds. Get a key instantly (no card required) at <strong style="color:var(--paper);">finnhub.io/register</strong>. This only works once the page is hosted somewhere with normal internet access (e.g. GitHub Pages) — it won't fetch data from inside Claude's own preview sandbox. Free-tier Finnhub allows 60 calls/minute; this setup uses about 45/minute across all 9 tickers, so it stays safely under that limit.</p>
+    <div class="live-form">
+      <input type="text" id="apiKeyInput" placeholder="Paste your Finnhub API key here…" autocomplete="off" spellcheck="false">
+      <button id="connectBtn" type="button">Connect &amp; go live</button>
+      <button id="disconnectBtn" type="button" class="secondary" style="display:none;">Stop live updates</button>
+    </div>
+    <div class="live-meta" id="liveMeta">Not connected yet — showing the July 3, 2026 snapshot below.</div>
+  </div>
+</section>
+
+<section id="charts">
+  <div class="section-head">
+    <div class="section-tag">Decision support · Portfolio view</div>
+    <h2 class="section-title">Where the money sits, and where Wall Street thinks it's headed</h2>
+    <p class="section-desc">Two ways to look at the same nine positions: total size, and how far each currently sits from its average analyst price target.</p>
+  </div>
+  <div class="chart-grid">
+    <div class="chart-card">
+      <h4>Market cap by holding</h4>
+      <div class="sub">Log scale — the gap between NVDA/GOOGL and NVTS/BMNR spans nearly 1,000x</div>
+      <canvas id="capChart"></canvas>
+    </div>
+    <div class="chart-card">
+      <h4>Upside / downside to analyst target</h4>
+      <div class="sub">% gap between current price and average 12-month analyst target</div>
+      <canvas id="targetChart"></canvas>
+    </div>
+  </div>
+</section>
+
+<section id="briefing">
+  <div class="section-head">
+    <div class="section-tag">Macro briefing</div>
+    <h2 class="section-title">The backdrop this book is trading against</h2>
+    <p class="section-desc">A high-level read on the conditions shaping every holding below — not investment advice, just the picture as it stands.</p>
+  </div>
+  <div class="briefing">
+    <div class="briefing-grid">
+      <div class="brief-item">
+        <h4>INDEX &amp; VOLATILITY</h4>
+        <p>S&amp;P 500 up roughly 7.7% YTD, but the average member has drawn down about -21% at some point this year — calm on the surface, turbulent underneath.</p>
+      </div>
+      <div class="brief-item">
+        <h4>FED POLICY</h4>
+        <p>New Fed Chair Kevin Warsh is seen as more balance-sheet-skeptical than his predecessor — a source of fresh policy uncertainty.</p>
+      </div>
+      <div class="brief-item">
+        <h4>INFLATION</h4>
+        <p>May CPI hit 4.2%, a three-year high, largely on oil prices spiking after the Iran conflict (Brent briefly near $114/bbl).</p>
+      </div>
+      <div class="brief-item">
+        <h4>AI CONCENTRATION</h4>
+        <p>The top 10 S&amp;P names are ~40% of index value. Analysts are flagging an "AI earnings circular financing" dynamic — hyperscaler capex propping up the same names driving the index.</p>
+      </div>
+      <div class="brief-item">
+        <h4>RETAIL ROTATION</h4>
+        <p>Retail trading in "Magnificent Seven" names has fallen to a four-year low as investors grow wary of AI cost overruns.</p>
+      </div>
+      <div class="brief-item">
+        <h4>IPO SUPPLY</h4>
+        <p>SpaceX's record listing, plus expected OpenAI and Anthropic IPOs, are competing for capital that might otherwise stay in existing AI names.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="holdings">
+  <div class="section-head">
+    <div class="section-tag">Holdings · Ranked by size</div>
+    <h2 class="section-title">Largest to smallest position</h2>
+    <p class="section-desc">Tap any row to expand the detail. Figures reflect early-July 2026 quotes and are a point-in-time snapshot, not live data.</p>
+  </div>
+  <div id="holdingsList"></div>
+</section>
+
+<section id="concentration">
+  <div class="callout">
+    <strong>The concentration picture, zoomed out.</strong> Every holding here — MSTR, SPCX, BMNR, GOOGL, AMZN, MSFT, MRVL, NVTS, NVDA — leans on either the AI infrastructure buildout, crypto sentiment, or both. There's no healthcare, staples, utilities, or bond exposure to cushion a shock. That's a coherent high-conviction stance, but it means a single macro surprise — a Fed shock, an AI-capex disappointment, or a crypto drawdown — could hit most positions at once rather than being absorbed by diversification.
+  </div>
+</section>
+
+<footer>
+  NOT FINANCIAL ADVICE — this is a factual snapshot compiled from public market data for reference only.<br>
+  Prices, market caps, and figures are approximate as of early July 2026 and will have moved since.
+</footer>
+
+<script>
+  const holdings = [
+    {
+      rank:1, sym:"MSTR", name:"Strategy Inc. (fka MicroStrategy)",
+      officialSite:"https://www.strategy.com/",
+      tag:"Bitcoin Treasury · Software", trend:"down",
+      price:"$82.08", trendLabel:"300+ day downtrend",
+      priceNum:82.08, low52:59, high52:543, target:172, capB:24.4,
+      risk:"extreme", riskLabel:"Extreme",
+      stats:[["$24.4B","Market Cap"],["N/M","P/E"],["~3.1","Beta"],["$543→$82","52-wk arc"]],
+      bull:"Bitwise argues MSTR's bitcoin and cash reserves can cover its preferred dividends, and a 3x beta means any Bitcoin recovery could snap the stock back hard.",
+      bear:"300+ day downtrend, heavy reliance on continued preferred-stock issuance, and total dependence on Bitcoin's price recovering — Citi, Canaccord and BTIG all cut targets in the same week.",
+      notes:[
+        "Operates as a <strong>bitcoin treasury company</strong> — its equity and preferred stock (STRC, STRK, STRF, STRD) offer varying degrees of economic exposure to Bitcoin, layered on top of a legacy enterprise analytics software business.",
+        "The stock has been in a sustained bear phase for over 300 days, pulling back from a $543 peak toward the low-$80s, largely tracking Bitcoin's own pullback. Multiple analysts (Citi, Canaccord, BTIG) have cut price targets sharply in recent weeks.",
+        "Carries a beta near 3.1 with daily volatility around 11% — this behaves like a leveraged Bitcoin position wrapped in equity, not a typical software stock."
+      ],
+      news:[
+        {date:"2026-07-02", text:"Canaccord Genuity cut its price target on Strategy to $130 from $163, part of a wider wave of Wall Street downgrades as the stock's steep, months-long pullback continues to weigh on sentiment. The cut reflects growing caution about near-term upside even though the firm's core bitcoin-treasury strategy hasn't changed — analysts are pointing squarely at Bitcoin's own price weakness, rather than anything company-specific, as the primary drag on the stock. The revision follows a string of similar moves from other banks over the same stretch, suggesting the Street is broadly recalibrating how much of a premium MSTR deserves over its underlying bitcoin holdings."},
+        {date:"2026-06-30", text:"BTIG slashed its price target to $250 from $350, one of the more dramatic single cuts in a busy week for analyst revisions on the name. The scale of the reduction underscores how closely Strategy's equity value is tethered to Bitcoin's own trajectory — as the crypto asset has cooled, the stock's premium to its bitcoin net asset value has compressed sharply, and BTIG's note reflects a more conservative view of how much further that compression could run before stabilizing."},
+        {date:"2026-06-30", text:"CNBC coverage flagged that the broader pullback in crypto markets is putting fresh, direct pressure on the stock, reinforcing the pattern seen throughout the quarter: MSTR trades less like a software company and more like a leveraged proxy for Bitcoin sentiment. With beta near 3, even modest moves in crypto prices tend to show up amplified in the equity, and the segment's reporting suggests traders are treating the stock accordingly, adding to volume and volatility on down days for the broader digital-asset market."},
+        {date:"2026-06-26", text:"Bitwise pushed back against some of the bearish narrative, arguing that Strategy's combined bitcoin holdings and cash reserves are more than sufficient to cover the dividend obligations on its various preferred stock issues (STRC, STRK, STRF, STRD), even amid the broader selloff. The argument is aimed at investors worried the company might be forced into distressed asset sales to meet its obligations — Bitwise's read is that despite the drawdown in the equity, the underlying balance sheet mechanics remain sound for now, framing the current move as sentiment-driven rather than a genuine solvency concern."},
+        {date:"2026-06-24", text:"Shares fell below the $100 mark for the first time since early 2024, a symbolically significant level given how far the stock has retreated from its all-time high near $543. The breach came amid a broader 300-plus-day downtrend and added to a growing list of technical damage on the chart, with some traders noting the move brought the stock into territory not seen in over two years — a reminder of just how much of the 2024–2025 rally has since been unwound as Bitcoin sentiment turned."}
+      ],
+      sources:[
+        {label:"Yahoo Finance — MSTR", url:"https://finance.yahoo.com/quote/MSTR/"},
+        {label:"Seeking Alpha — MSTR", url:"https://seekingalpha.com/symbol/MSTR"},
+        {label:"TradingView — MSTR", url:"https://www.tradingview.com/symbols/NASDAQ-MSTR/"},
+        {label:"Nasdaq — MSTR", url:"https://www.nasdaq.com/market-activity/stocks/mstr"},
+        {label:"Stocktwits — MSTR", url:"https://stocktwits.com/symbol/MSTR"}
+      ]
+    },
+    {
+      rank:2, sym:"SPCX", name:"Space Exploration Technologies (SpaceX)",
+      officialSite:"https://www.spacex.com/",
+      tag:"Aerospace · Starlink · AI (newly public)", trend:"flat",
+      price:"$157.69", trendLabel:"IPO'd June 12, 2026",
+      priceNum:157.69, low52:135, high52:225.64, target:188.17, capB:2080,
+      risk:"high", riskLabel:"Very High",
+      stats:[["$2.08T","Market Cap"],["$135","IPO price"],["$225.64","52-wk high"],["30%","Retail allocation"]],
+      bull:"Wedbush initiated at Outperform, calling it a 'major hyperscaler' — Starlink subscriber growth and launch dominance are real and still compounding.",
+      bear:"Morningstar flags the valuation implies decades of near-perfect growth already priced in; active short interest is betting on a resumed post-IPO decline, and trading history is only weeks old.",
+      notes:[
+        "Completed the <strong>largest IPO in history</strong> on June 12, 2026, pricing at $135/share and raising ~$75B at a valuation approaching $1.8T — briefly touching $2T+ as demand surged.",
+        "Three segments: <strong>Space</strong> (launch — more annual orbital launches than any other provider), <strong>Connectivity</strong> (Starlink, 10.3M+ subscribers across 160 countries), and <strong>AI</strong> (Grok, X, and data centers, following the February 2026 xAI merger).",
+        "2025 revenue was $18.67B with a GAAP net loss near $5B given heavy reinvestment. Shares have been volatile since listing — down as much as 28% from the June 16 intraday high of $225.64 at one point.",
+        "Consensus 12-month target sits around $188 (range $62–$310), with 7 of 8 analysts rating it Buy — though Morningstar flags the valuation implies years of growth already priced in."
+      ],
+      news:[
+        {date:"2026-07-01", text:"Elon Musk publicly called a Wall Street Journal report about an AI device 'utterly false,' pushing back hard against the story just weeks after SpaceX's landmark IPO. Shares cratered roughly 7% on the day regardless of the denial, illustrating how sensitive the stock remains to any headline touching Musk's broader web of AI ambitions across SpaceX, xAI, and Tesla. The episode is a reminder that with such a young, thinly-traded listing, even unconfirmed reporting can move the stock sharply before the facts are fully sorted out."},
+        {date:"2026-07-01", text:"Reuters reported that short sellers are actively positioning for a resumed post-debut decline in SpaceX shares, betting that the stock's pullback from its June 16 intraday high of $225.64 has further to run. The bearish positioning reflects skepticism about how much of SpaceX's eventual growth is already priced into the stock at its current valuation, with some traders pointing to the gap between the IPO price of $135 and the subsequent run-up as evidence the initial pop was driven more by scarcity and hype than by fundamentals that have since had time to be digested."},
+        {date:"2026-06-30", text:"Wedbush Securities initiated coverage of SpaceX with an Outperform rating, explicitly framing the company as a 'major hyperscaler' rather than a traditional aerospace or launch-services business. The framing is significant: it puts SpaceX in the same conversation as cloud infrastructure giants building out AI data centers, reflecting the growing importance of the company's AI segment (built around the February 2026 xAI merger) alongside its more established Starlink and launch businesses in how analysts are now valuing the stock."},
+        {date:"2026-06-29", text:"Tesla shares popped roughly 8% after Musk hinted at deeper ties between SpaceX and Tesla's AI efforts, underscoring how intertwined the market now views Musk's various companies to be. The move highlights a broader dynamic worth watching for SPCX holders: positive (or negative) sentiment toward one Musk-affiliated company increasingly spills over into the others, adding a layer of cross-company correlation risk that didn't really exist before SpaceX's public listing."},
+        {date:"2026-06-16", text:"SpaceX shares peaked intraday at $225.64, marking the high point of a powerful post-IPO run before a three-session slide began that would eventually pull the stock down as much as 28% from that level. The peak came just four days after the IPO priced, reflecting the initial wave of retail and institutional demand for one of the most anticipated listings in market history — the subsequent slide has since become a key reference point for traders trying to gauge where the stock's 'real' trading range will ultimately settle."},
+        {date:"2026-06-12", text:"SpaceX completed its initial public offering, pricing shares at $135 and raising approximately $75 billion in what was widely described as the largest IPO in history. The offering valued the company at nearly $1.8 trillion at listing, briefly pushing above $2 trillion as demand surged in the opening days of trading. Unusually for a mega-cap IPO, roughly 30% of the offered shares were earmarked for retail investors, distributed through major brokerage platforms including Schwab, Fidelity, Robinhood, SoFi, and E*TRADE — a deliberate departure from the single-digit retail allocations typical of offerings this size."}
+      ],
+      sources:[
+        {label:"Yahoo Finance — SPCX", url:"https://finance.yahoo.com/quote/SPCX/"},
+        {label:"CNN Markets — SPCX", url:"https://www.cnn.com/markets/stocks/SPCX"},
+        {label:"Morningstar — SPCX", url:"https://www.morningstar.com/stocks/xnas/spcx/quote"},
+        {label:"TradingView — SPCX", url:"https://www.tradingview.com/symbols/NASDAQ-SPCX/"},
+        {label:"Investing.com — SPCX", url:"https://www.investing.com/equities/spacex"}
+      ]
+    },
+    {
+      rank:3, sym:"BMNR", name:"BitMine Immersion Technologies",
+      officialSite:null,
+      tag:"Ethereum Treasury", trend:"down",
+      price:"$14.45", trendLabel:"Near 52-wk low",
+      priceNum:14.45, low52:12.38, high52:161, target:30.30, capB:8.2,
+      risk:"extreme", riskLabel:"Extreme",
+      stats:[["$8.2B","Market Cap"],["-1.63","P/E"],["5.7M ETH","Holdings"],["$161→$14","52-wk arc"]],
+      bull:"Just added to the Russell 1000/2500/3000 — a sticky, forced-buyer catalyst from index funds — and it still holds a massive ETH treasury.",
+      bear:"Eighth consecutive down week as of late June; even Cantor's own $30 target implies real skepticism remains after a 90%+ collapse from highs.",
+      notes:[
+        "The Ethereum equivalent of a Strategy-style treasury play — accumulates and holds ETH as its core balance-sheet asset, championed publicly by Tom Lee.",
+        "Reported total holdings (crypto + cash + \"moonshot\" investments) of $9.8B, including 5.7M ETH — roughly 4.7% of total ETH supply.",
+        "Down roughly 90%+ from its 52-week high of $161, currently trading just above its 52-week low near $12.38 — the steepest drawdown of any holding in this book.",
+        "Just added to the Russell 1000/2500/3000 indexes in late June 2026, and declared a dividend on its preferred stock (BMNP) — a rare bright spot amid the selloff."
+      ],
+      news:[
+        {date:"2026-07-01", text:"BitMine Immersion Technologies was added to the Russell 1000, 2500, 3000, and related value and completeness benchmark indexes, a meaningful structural catalyst since it forces index-tracking funds to buy shares regardless of their view on the stock's fundamentals. The inclusion came alongside the company declaring a cash dividend on its 9.50% Series A Perpetual Preferred Stock (ticker BMNP), a rare piece of shareholder-friendly news during an otherwise brutal stretch for the common stock, and one that some investors read as a signal of underlying balance-sheet confidence even as the equity itself remains deeply depressed.", url:"https://finance.yahoo.com/markets/stocks/articles/bitmine-immersion-technologies-bmnr-russell-071743433.html"},
+        {date:"2026-06-30", text:"BanklessTimes reported that the stock is now in its eighth consecutive red week, one of the longest sustained losing streaks of any name in this portfolio. The persistence of the decline is notable given BitMine's still-massive Ethereum treasury, suggesting the market is pricing in continued weakness in ETH itself rather than any company-specific operational issue — the piece frames this as largely a crypto-sentiment story playing out through the equity rather than a reflection of BitMine's execution.", url:"https://www.banklesstimes.com/articles/2026/06/30/bitmine-stock-why-tom-lees-bmnr-has-room-for-more-downside/"},
+        {date:"2026-06-29", text:"Cantor Fitzgerald cut its price target on BitMine to $30.30 from $39.00, a reduction that — even after the cut — still implies substantial theoretical upside from the stock's current price near $14. That gap is worth noting: it suggests analysts see real recovery potential if Ethereum sentiment turns, even as they've become more conservative about the timeline and magnitude of that recovery given how sharply the stock has already fallen from its 52-week high near $161."},
+        {date:"2026-06-28", text:"BitMine disclosed holdings of 5.7 million ETH, representing roughly 4.7% of Ethereum's total circulating supply, with total treasury assets — crypto, cash, and other 'moonshot' investments — reported near $9.8 billion. The scale of the holding is genuinely significant at the network level: BitMine's accumulation strategy means the company's own buying and selling decisions can meaningfully influence ETH's supply dynamics, a dual role as both a corporate treasury and a de facto market participant that sets it apart from a typical operating company."},
+        {date:"2026-06-25", text:"Reports emerged that Cathie Wood's roughly $300 million crypto-linked bet — widely understood to include exposure tied to names like BitMine — has fallen more than 90% from its peak, a striking drawdown even by the standards of high-volatility crypto-adjacent equities. The scale of the loss has drawn attention as a cautionary case study in how concentrated crypto-treasury bets can unwind extremely fast once sentiment turns, even when the underlying asset (in this case, Ethereum) hasn't collapsed by anywhere near the same magnitude as the equity built on top of it.", url:"https://www.tipranks.com/news/catalyst/crypto-hit-pounds-bitmine-stock-despite-massive-eth-war-chest"},
+        {date:"2026-01-15", text:"Tom Lee's Bitmine invested $200 million into MrBeast's platform, an unusual move for a company whose core identity is an Ethereum treasury vehicle. The investment illustrates the 'moonshot' portion of BitMine's balance sheet strategy — beyond simply accumulating ETH, the company has shown a willingness to deploy capital into high-profile, high-visibility bets outside crypto entirely, a diversification approach that adds a layer of unpredictability to the stock beyond its ETH exposure alone."}
+      ],
+      sources:[
+        {label:"Yahoo Finance — BMNR", url:"https://finance.yahoo.com/quote/BMNR/"},
+        {label:"CNBC — BMNR", url:"https://www.cnbc.com/quotes/BMNR"},
+        {label:"Investing.com — BMNR", url:"https://www.investing.com/equities/bitmine-immersion-tech"},
+        {label:"Fidelity — BMNR", url:"https://digital.fidelity.com/prgw/digital/research/quote/dashboard/summary?symbol=BMNR"},
+        {label:"TipRanks coverage — BMNR", url:"https://www.tipranks.com/news/catalyst/bitmine-stock-soars-on-giant-ethereum-bet-reveal"}
+      ]
+    },
+    {
+      rank:4, sym:"GOOGL", name:"Alphabet Inc.",
+      officialSite:"https://abc.xyz/",
+      tag:"Search · Cloud · AI", trend:"up",
+      price:"$359.07", trendLabel:"Up over past year",
+      priceNum:359.07, low52:172.77, high52:408.61, target:432.65, capB:4360,
+      risk:"moderate", riskLabel:"Moderate",
+      stats:[["$4.36T","Market Cap"],["27.6x","P/E (TTM)"],["0.24%","Div Yield"],["$173–$409","52-wk range"]],
+      bull:"Just joined the Dow; Search, YouTube, and Cloud remain genuine cash machines that can self-fund the AI build-out without excess leverage.",
+      bear:"Losing top AI research talent to rivals (Jumper to Anthropic, Shazeer to OpenAI), and heavy capex is compressing free cash flow hard through 2027.",
+      notes:[
+        "Three segments: <strong>Google Services</strong> (Search, YouTube, Android, Gmail, Maps), <strong>Google Cloud</strong> (AI infrastructure, Vertex AI, Gemini), and Other Bets.",
+        "Just added to the <strong>Dow Jones Industrial Average</strong> — a notable milestone. Also hit an all-time high near $408 in May before pulling back.",
+        "Shares dipped over 5% in one week after AI researchers John Jumper and Noam Shazeer departed for Anthropic and OpenAI respectively — a talent-drain scare.",
+        "Capex is expected to climb toward $300B through 2027, with modeled free cash flow projected to fall from ~$73B (2025) to ~$14B (2027) as AI infrastructure spend ramps hard."
+      ],
+      news:[
+        {date:"2026-07-01", text:"Alphabet was officially added to the Dow Jones Industrial Average, a symbolically significant milestone for a company that only fully embraced the 'blue chip' identity in recent years. Inclusion in the Dow doesn't change Alphabet's fundamentals directly, but it does mean the stock now factors into one of the most widely tracked (if methodologically old-fashioned, price-weighted) indexes in the world, and it typically brings incremental buying from Dow-tracking funds and ETFs that hadn't previously needed to hold the name in that specific basket."},
+        {date:"2026-06-27", text:"Shares slid more than 5% over the course of a single week after two senior AI researchers, John Jumper and Noam Shazeer, departed Alphabet — Jumper for Anthropic and Shazeer for OpenAI. The talent exits rattled investors already sensitive to questions about whether Google can retain its edge in the AI research race against well-funded rivals, and the sell-off reflects broader anxiety that Alphabet's AI moat depends heavily on retaining a small number of extremely high-value researchers, any departure of whom can move the stock disproportionately relative to their direct financial impact."},
+        {date:"2026-06-20", text:"The European Union's top court upheld a roughly €4.1 billion antitrust fine against Alphabet over Android, rejecting the company's appeal related to allegations of forced pre-installation and exclusivity arrangements with device makers. While the fine itself is a fraction of Alphabet's annual profit, the ruling closes off one avenue of appeal and reinforces the EU's willingness to enforce aggressive penalties against the company's core mobile ecosystem, adding to a broader pattern of regulatory pressure Alphabet has faced across multiple jurisdictions in recent years."},
+        {date:"2026-06-10", text:"Alphabet outlined plans to invest approximately $15 billion in three new data-center campuses in Visakhapatnam, India, targeted for completion by 2028, with two of the three campuses having already cleared environmental review. The investment reflects Google Cloud's broader international expansion strategy to build out AI infrastructure capacity closer to fast-growing markets, and the company reportedly secured favorable land-value and utility-cost incentives from local authorities as part of the deal — a pattern increasingly common as hyperscalers compete for prime data-center real estate globally."}
+      ],
+      sources:[
+        {label:"Yahoo Finance — GOOGL", url:"https://finance.yahoo.com/quote/GOOGL/"},
+        {label:"CNBC — GOOGL", url:"https://www.cnbc.com/quotes/GOOGL"},
+        {label:"Morningstar — GOOGL", url:"https://www.morningstar.com/stocks/xnas/googl/quote"},
+        {label:"MarketBeat — GOOGL", url:"https://www.marketbeat.com/stocks/NASDAQ/GOOGL/chart/"},
+        {label:"Robinhood — GOOGL", url:"https://robinhood.com/us/en/stocks/GOOGL/"}
+      ]
+    },
+    {
+      rank:5, sym:"AMZN", name:"Amazon.com, Inc.",
+      officialSite:"https://www.amazon.com/ir",
+      tag:"E-commerce · AWS Cloud", trend:"up",
+      price:"$243.00", trendLabel:"Up over past year",
+      priceNum:243.00, low52:196.00, high52:278.56, target:312.99, capB:2610,
+      risk:"moderate", riskLabel:"Moderate",
+      stats:[["$2.61T","Market Cap"],["28.9x","P/E (TTM)"],["$200B","2026 AI spend"],["$196–$279","52-wk range"]],
+      bull:"AWS just posted its best growth acceleration in 15 quarters, and the coming satellite internet launch is a genuinely new growth vector.",
+      bear:"Satellite internet puts Amazon in direct competition with your own SPCX holding, and $200B of AI spend this year is pressuring near-term margins.",
+      notes:[
+        "Three segments: North America retail, International retail, and <strong>AWS</strong> — increasingly the center of the investment thesis.",
+        "Committing $200B this year to its AI business, and AWS just posted its <strong>highest sales growth in 15 quarters</strong>.",
+        "Pushing into satellite internet, aiming to launch service this year — putting it in direct competition with your other holding, SpaceX's Starlink.",
+        "Wells Fargo recently raised its price target to $313, and a top analyst reaffirmed Buy ahead of Q2 earnings."
+      ],
+      news:[
+        {date:"2026-07-01", text:"Wells Fargo raised its price target on Amazon to $313 from $312, a modest tweak that nonetheless reaffirms a constructive stance on the stock heading into its next earnings report. While the size of the revision is small, the fact that it's a raise rather than a cut stands out somewhat against the backdrop of a mixed environment for Big Tech valuations, and the note reportedly cited continued confidence in AWS's growth trajectory as the primary supporting factor."},
+        {date:"2026-07-01", text:"Amazon moved closer to its satellite internet debut with a new launch, advancing a business line that puts it in increasingly direct competition with Starlink — notably, also a holding in this same portfolio via SpaceX. The push into satellite broadband represents a genuinely new growth vector for Amazon beyond retail and cloud, though it also means two positions in this portfolio are now positioned as direct competitors in an emerging market, which is worth keeping in mind when thinking about diversification within the book."},
+        {date:"2026-06-30", text:"A Jefferies CIO survey found that Amazon and Microsoft are 'standing out' among enterprise technology buyers in terms of planned cloud spending for the remainder of 2026, a reassuring signal for AWS given ongoing questions about competitive pressure from Azure and Google Cloud. Surveys like this are closely watched by investors as a leading indicator of enterprise IT budget allocation, since they tend to surface real purchasing intent before it shows up in quarterly earnings reports several months later."},
+        {date:"2026-06-25", text:"AWS posted its highest sales-growth acceleration in 15 quarters, a notable reacceleration for a cloud division that had faced periods of decelerating growth as competition intensified. The improvement is a key data point for the bull case on Amazon broadly, since AWS remains the company's highest-margin segment and disproportionately drives overall profitability — a sustained reacceleration there would meaningfully change the earnings trajectory for the stock as a whole, separate from the lower-margin retail business."}
+      ],
+      sources:[
+        {label:"Yahoo Finance — AMZN", url:"https://finance.yahoo.com/quote/AMZN/"},
+        {label:"CNN Markets — AMZN", url:"https://www.cnn.com/markets/stocks/AMZN"},
+        {label:"Morningstar — AMZN", url:"https://www.morningstar.com/stocks/xnas/amzn/quote"},
+        {label:"Robinhood — AMZN", url:"https://robinhood.com/us/en/stocks/AMZN/"},
+        {label:"MacroTrends — AMZN market cap", url:"https://www.macrotrends.net/stocks/charts/AMZN/amazon/market-cap"}
+      ]
+    },
+    {
+      rank:6, sym:"MSFT", name:"Microsoft Corporation",
+      officialSite:"https://www.microsoft.com/en-us/investor",
+      tag:"Enterprise Software · Azure · AI", trend:"down",
+      price:"$385.89", trendLabel:"~30% off ATH",
+      priceNum:385.89, low52:349.20, high52:555.45, target:561.11, capB:2870,
+      risk:"moderate", riskLabel:"Moderate",
+      stats:[["$2.87T","Market Cap"],["22.9x","P/E (TTM)"],["0.93%","Div Yield"],["$555 ATH","Oct 2025"]],
+      bull:"Azure is widening its cloud lead over AWS, and Microsoft carries a Strong Buy consensus with the widest re-rating gap to target in this book (+45%).",
+      bear:"Steepest percentage pullback of the mega-caps here (-30% from ATH), and it's planning fresh layoffs even while spending billions ramping AI.",
+      notes:[
+        "Sitting roughly 30% below its October 2025 all-time high of $555 — the steepest percentage pullback among the mega-cap names in this book.",
+        "Reportedly planning further layoffs across sales, consulting, and Xbox even while ramping AI capex — a signal Wall Street is watching closely for cost discipline.",
+        "Launched <strong>Microsoft Frontier Company</strong>, a $2.5B new unit dedicated to helping enterprise clients actually realize ROI from AI deployments, directly addressing \"AI spend isn't paying off\" criticism.",
+        "Azure just widened its lead over AWS in a recent Jefferies CIO survey, and Barron's noted the stock is rising even as broader tech slumps."
+      ],
+      news:[
+        {date:"2026-07-02", text:"The same Jefferies CIO survey that flagged strong cloud spending for Amazon also found that Azure is widening its lead over AWS among enterprise buyers, a notable data point given how closely the two cloud providers are watched as bellwethers for overall enterprise AI adoption. Surveys of chief information officers are considered particularly credible leading indicators because they reflect actual budget-allocation decisions already underway, rather than vendor marketing claims, and a widening Azure lead would support the bull case that Microsoft's AI-integration strategy across its enterprise software stack is translating into real competitive advantage."},
+        {date:"2026-07-01", text:"Consumer health company Haleon announced a new five-year agreement to expand its use of Microsoft's AI, cloud, and data technologies, and Microsoft shares rose roughly 4% on the news. Deals like this matter less for their direct revenue contribution and more as proof points — each high-profile, multi-year enterprise AI commitment helps counter the narrative that AI capital expenditure isn't yet translating into paying customer relationships, a criticism that has weighed on sentiment toward Microsoft and its AI-infrastructure peers throughout much of 2026."},
+        {date:"2026-06-26", text:"Microsoft launched Microsoft Frontier Company, a new $2.5 billion operating unit dedicated to embedding engineers and salespeople directly with enterprise clients to help them successfully deploy and extract real return on investment from AI tools. The initiative is a direct response to a persistent criticism of the broader AI capex boom — that companies are spending enormously on AI infrastructure without yet seeing commensurate productivity gains — and represents Microsoft explicitly putting its own capital behind closing that gap for its customer base rather than simply selling more compute and software licenses."},
+        {date:"2026-06-22", text:"Microsoft was reported to be planning a fresh round of layoffs affecting thousands of roles across sales, consulting, and the Xbox division, even as the company continues to invest heavily in AI infrastructure and the newly launched Frontier Company initiative. The juxtaposition — cutting headcount in some divisions while ramping AI-related capital spending sharply in others — reflects a broader reallocation of resources happening across Microsoft and several of its mega-cap peers, as companies shift cost structure away from traditional roles and toward AI-related infrastructure and talent."}
+      ],
+      sources:[
+        {label:"Yahoo Finance — MSFT", url:"https://finance.yahoo.com/quote/MSFT/"},
+        {label:"CNBC — MSFT", url:"https://www.cnbc.com/quotes/MSFT"},
+        {label:"CNN Markets — MSFT", url:"https://www.cnn.com/markets/stocks/MSFT"},
+        {label:"StockAnalysis.com — MSFT", url:"https://stockanalysis.com/stocks/msft/"},
+        {label:"Robinhood — MSFT", url:"https://robinhood.com/us/en/stocks/MSFT/"}
+      ]
+    },
+    {
+      rank:7, sym:"MRVL", name:"Marvell Technology, Inc.",
+      officialSite:"https://www.marvell.com/",
+      tag:"AI Data-Center Semiconductors", trend:"up",
+      price:"$270.51", trendLabel:"+233% over past year",
+      priceNum:270.51, low52:61.44, high52:329.88, target:325, capB:238,
+      risk:"high", riskLabel:"High",
+      stats:[["$238B","Market Cap"],["~100x","P/E (TTM)"],["76%","Data-center rev mix"],["$61→$330","52-wk arc"]],
+      bull:"Nvidia's own CEO floated Marvell as 'the next trillion-dollar chip stock,' and three separate firms hiked targets in the same two-week span (UBS, Cantor, Stifel).",
+      bear:"~100x trailing P/E and 125% above its 200-day moving average — one of the most stretched valuations in this book, prone to violent single-day drops.",
+      notes:[
+        "Designs custom ASICs, optical/DSP interconnects, and networking silicon for AI data centers — complementary to, not competing with, Nvidia's GPUs.",
+        "Nvidia CEO Jensen Huang publicly said Marvell \"could become the next trillion-dollar chip stock,\" sending shares (and AMD) sharply higher.",
+        "Recent wave of price-target hikes: Stifel to $350, Cantor Fitzgerald to $300, UBS to $340 — but the stock also posted single-day drops near -9% to -12% in the same stretch, underscoring how stretched sentiment has become.",
+        "Trading around 125% above its 200-day moving average — real fundamentals behind the move, but priced for continued near-perfect execution."
+      ],
+      news:[
+        {date:"2026-07-01", text:"Nvidia CEO Jensen Huang publicly remarked that Marvell 'could become the next trillion-dollar chip stock,' a striking endorsement from the head of the world's most valuable semiconductor company, and one that sent Marvell shares sharply higher along with sympathetic gains in AMD. Comments like this from Huang carry outsized weight in the chip sector given Nvidia's central role in the AI buildout — the remark effectively signaled that Nvidia views Marvell's custom ASIC and interconnect business as complementary infrastructure rather than a competitive threat, reinforcing the thesis that Marvell benefits from AI data-center growth without directly competing for GPU market share."},
+        {date:"2026-06-29", text:"UBS raised its price target on Marvell to $340 from $230, one of the largest single revisions in this portfolio, citing significant upside tied to the company's CXL (Compute Express Link) memory-interconnect technology. On the same day, Cantor Fitzgerald raised its own target to $300 from $220. The near-simultaneous upgrades from two separate firms, both citing similar underlying drivers, added significant momentum to the stock and reflected a broader re-rating of how Wall Street values Marvell's positioning within the AI data-center supply chain, beyond just its historical networking-chip business."},
+        {date:"2026-06-24", text:"Stifel raised its price target to $350 from $321, continuing the wave of upward revisions that characterized the back half of June for Marvell. The relatively smaller size of this particular increase compared to the UBS and Cantor moves suggests Stifel had already been more constructive on the name heading into the period, but the direction — another raise rather than a cut — reinforced the overall bullish tilt among sell-side analysts covering the stock at the time."},
+        {date:"2026-06-23", text:"An analyst note characterized Marvell as 'an AI infrastructure winner at a steep premium,' capturing the core tension in how the market was pricing the stock at the time: genuine, well-supported fundamental momentum from AI data-center demand, but a valuation that had run up so far and so fast that it left little room for anything less than continued flawless execution. That tension has proven prescient, given the stock's subsequent single-day double-digit swings in both directions as sentiment has oscillated around just how much of the AI infrastructure story is already reflected in the share price."}
+      ],
+      sources:[
+        {label:"CNBC — MRVL", url:"https://www.cnbc.com/quotes/MRVL"},
+        {label:"CNN Markets — MRVL", url:"https://www.cnn.com/markets/stocks/MRVL"},
+        {label:"Stockopedia — MRVL", url:"https://www.stockopedia.com/share-prices/marvell-technology-NSQ:MRVL/"},
+        {label:"Seeking Alpha — MRVL", url:"https://seekingalpha.com/symbol/MRVL"},
+        {label:"Stocktwits — MRVL", url:"https://stocktwits.com/symbol/MRVL"}
+      ]
+    },
+    {
+      rank:8, sym:"NVTS", name:"Navitas Semiconductor Corp.",
+      officialSite:"https://navitassemi.com/",
+      tag:"GaN / SiC Power Semiconductors", trend:"up",
+      price:"$14.11", trendLabel:"+265% YTD, extremely volatile",
+      priceNum:14.11, low52:5.44, high52:34.17, target:14.46, capB:3.6,
+      risk:"extreme", riskLabel:"Extreme",
+      stats:[["$3.6B","Market Cap"],["N/M","P/E"],["-45%","2025 Rev. growth"],["$5.44–$34","52-wk range"]],
+      bull:"Direct, publicly showcased Nvidia partnership, and a +265% YTD move shows how fast sentiment can re-rate this name when a catalyst lands.",
+      bear:"Revenue actually fell 45% in 2025 and the company remains unprofitable; the analyst consensus target ($14.46) sits barely above the current price — Wall Street isn't chasing this rally.",
+      notes:[
+        "Makes gallium nitride (GaN) and silicon carbide (SiC) power chips — the \"power delivery\" layer that feeds electricity efficiently to AI data-center GPUs.",
+        "Rallied hard after unveiling a direct partnership with Nvidia, showcasing an 800V-to-6V power delivery board at Nvidia's Computex 2026 showcase — the single biggest catalyst behind the move.",
+        "Financials are thin: 2025 revenue was just $45.9M, <em>down</em> 44.9% year-over-year, with losses near $117M — this is trading almost entirely on narrative, not current earnings.",
+        "The 8-analyst consensus rating is \"Hold\" with a 12-month target of just $14.46 — one of the few names here where Wall Street's target sits below, not above, the trading price. Board chair also resigned abruptly in June 2026."
+      ],
+      news:[
+        {date:"2026-06-26", text:"Navitas shares swung sharply across sessions, falling between roughly 12.7% and 14.25% amid mixed options-market sentiment, one of the more volatile stretches for a stock that has already been extraordinarily volatile all year (it carries a beta above 4). Options-flow data during the period showed traders positioned on both sides of the move, reflecting genuine disagreement about whether the pullback represented a healthy consolidation after the stock's massive year-to-date run or the start of a more serious reversal in sentiment toward the AI power-semiconductor narrative that had driven the rally in the first place."},
+        {date:"2026-06-09", text:"Navitas' Board Chair, Dr. Ranbir Singh, resigned suddenly, a governance development that added an element of uncertainty on top of the stock's already elevated volatility. Sudden board-level departures at small-cap companies tend to draw outsized scrutiny from investors, since there's often limited public detail about the circumstances, and the timing — arriving amid a period of intense investor attention following the Nvidia partnership news — made the resignation a notable talking point even without further explanation being provided."},
+        {date:"2026-06-03", text:"Navitas revealed a direct partnership with Nvidia, showcasing an 800V-to-6V DC-DC power delivery board at Nvidia's AI Factory ecosystem showcase during Computex 2026 in Taipei. This was the single biggest catalyst behind the stock's explosive year-to-date rally, as it validated Navitas' positioning at the 'power delivery' layer of AI data-center infrastructure — the often-overlooked but essential systems that efficiently route electricity to power-hungry GPU clusters — and gave the market a concrete, high-profile signal that a major AI infrastructure leader viewed Navitas' technology as relevant to next-generation data-center design."},
+        {date:"2026-05-21", text:"A group of analysts raised their 2026 revenue forecasts for Navitas by roughly 12%, and shares climbed about 27% over the following week in response. The upgrade came even though Navitas' actual reported revenue had been declining sharply — a reminder that in fast-moving, narrative-driven small-cap names, forward-looking analyst sentiment about a company's positioning within a hot theme (in this case, AI power semiconductors) can move the stock substantially even before that optimism shows up in trailing financial results."}
+      ],
+      sources:[
+        {label:"Yahoo Finance — NVTS", url:"https://finance.yahoo.com/quote/NVTS/"},
+        {label:"CNN Markets — NVTS", url:"https://www.cnn.com/markets/stocks/NVTS"},
+        {label:"TradingView — NVTS", url:"https://www.tradingview.com/symbols/NASDAQ-NVTS/"},
+        {label:"StockAnalysis.com — NVTS", url:"https://stockanalysis.com/stocks/nvts/"},
+        {label:"AdvFN — NVTS", url:"https://www.advfn.com/stock-market/NASDAQ/NVTS/stock-price"}
+      ]
+    },
+    {
+      rank:9, sym:"NVDA", name:"NVIDIA Corporation",
+      officialSite:"https://investor.nvidia.com/",
+      tag:"AI Compute · GPUs", trend:"up",
+      price:"$194.28", trendLabel:"Anchor of the AI trade",
+      priceNum:194.28, low52:152.97, high52:236.54, target:250, capB:4780,
+      risk:"high", riskLabel:"High",
+      stats:[["$4.78T","Market Cap"],["30.3x","P/E (TTM)"],["$91B","Q2 rev. guide"],["$3–4T","2030 AI infra TAM"]],
+      bull:"Sets the ceiling for the entire AI trade; management sees a $3–4T annual AI infrastructure market by 2030, well above current spend.",
+      bear:"Michael Burry has publicly disclosed a bet against it, and its own biggest customers — including your GOOGL, AMZN, and MSFT holdings — are incentivized to eventually reduce reliance on it via in-house chips.",
+      notes:[
+        "Smallest position by size, but the <strong>bellwether for the entire theme</strong> underlying this whole portfolio — data-center AI compute plus the legacy GeForce gaming business.",
+        "Management sees $3–4 trillion in annual global AI infrastructure spending by 2030, and just guided Q2 revenue to $91B.",
+        "Notable bear case: Michael Burry has publicly disclosed bets against Nvidia (alongside Tesla and Caterpillar), warning of an AI bubble — a contrarian voice worth tracking given his track record.",
+        "Customer concentration risk: Nvidia's largest buyers are a handful of mega-caps — including Google, Amazon, and Microsoft, all also held in this book — each with long-term incentive to diversify away from Nvidia via in-house chip design."
+      ],
+      news:[
+        {date:"2026-06-30", text:"Michael Burry, best known for his prescient bet against the U.S. housing market before the 2008 financial crisis, publicly disclosed bets against Nvidia, Tesla, and Caterpillar, explicitly citing concerns about an AI-driven bubble in equity valuations. Burry's track record gives his contrarian calls outsized attention relative to their direct market impact, and this particular disclosure added to a growing chorus of skeptical voices questioning whether current AI infrastructure spending and the valuations built on top of it can be sustained if productivity gains from AI don't materialize as quickly as the market currently expects."},
+        {date:"2026-06-30", text:"Nvidia shareholders backed a slate of board and corporate-governance changes at the company's annual meeting, covering director elections, board structure, executive compensation, and auditor ratification. While routine in nature, annual-meeting votes are watched closely at a company of Nvidia's scale and influence, since even modest governance shifts can signal how the board is thinking about long-term strategy, succession planning, and shareholder alignment as the company navigates its central role in the AI infrastructure buildout."},
+        {date:"2026-06-28", text:"Nvidia named Nicholas Parker, poached directly from Microsoft, to lead the company's field operations — a notable executive hire given it pulls senior talent from one of Nvidia's own largest customers. Moves like this reflect the intensifying competition for experienced enterprise-sales and operations leadership across the AI infrastructure ecosystem, where the same handful of executives with deep hyperscaler relationships are being recruited aggressively between the small number of companies that dominate the space."},
+        {date:"2026-06-15", text:"Nvidia guided second-quarter revenue to approximately $91 billion, a figure that underscores the sheer scale the company now operates at and serves as a key reference point for the broader AI capital-expenditure cycle. Because Nvidia's revenue is so heavily concentrated among a small number of hyperscaler customers — several of which, including Google, Amazon, and Microsoft, are also held elsewhere in this portfolio — this guidance figure functions almost as a proxy for the overall health of AI infrastructure spending industry-wide, not just for Nvidia's own business."}
+      ],
+      sources:[
+        {label:"Yahoo Finance — NVDA", url:"https://finance.yahoo.com/quote/NVDA/"},
+        {label:"CNBC — NVDA", url:"https://www.cnbc.com/quotes/NVDA"},
+        {label:"Morningstar — NVDA", url:"https://www.morningstar.com/stocks/xnas/nvda/quote"},
+        {label:"CNN Markets — NVDA", url:"https://www.cnn.com/markets/stocks/NVDA"},
+        {label:"MacroTrends — NVDA", url:"https://www.macrotrends.net/stocks/charts/NVDA/nvidia/stock-price-history"}
+      ]
+    }
+  ];
+
+  const trendArrow = t => t === "up" ? "▲" : t === "down" ? "▼" : "●";
+  const monthLabel = iso => {
+    const d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString('en-US', {month:'short', year:'numeric'});
+  };
+  const fullDate = iso => {
+    const d = new Date(iso + "T00:00:00");
+    return d.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'});
+  };
+
+  // Build ticker tape (doubled for seamless loop)
+  const tickerTrack = document.getElementById('tickerTrack');
+  const tickerHTML = holdings.map(h => `
+    <span class="ticker-item">
+      <span class="dot ${h.trend}"></span>
+      <span class="sym">${h.sym}</span>
+      <span class="px">${h.price}</span>
+      <span class="price-trend ${h.trend}" style="margin:0;">${trendArrow(h.trend)}</span>
+    </span>
+  `).join('');
+  tickerTrack.innerHTML = tickerHTML + tickerHTML;
+
+  // Build holdings list
+  const list = document.getElementById('holdingsList');
+  list.innerHTML = holdings.map((h, i) => {
+    const pos = Math.max(0, Math.min(100, ((h.priceNum - h.low52) / (h.high52 - h.low52)) * 100));
+    const targetPos = Math.max(0, Math.min(100, ((h.target - h.low52) / (h.high52 - h.low52)) * 100));
+    const upside = ((h.target - h.priceNum) / h.priceNum) * 100;
+    const upsideStr = (upside >= 0 ? '+' : '') + upside.toFixed(1) + '%';
+    const upsideClass = upside >= 0 ? 'upside' : 'downside';
+
+    const months = [...new Set(h.news.map(n => monthLabel(n.date)))];
+    const newsHTML = h.news
+      .slice().sort((a,b) => new Date(b.date) - new Date(a.date))
+      .map(n => `
+        <div class="news-entry" data-month="${monthLabel(n.date)}">
+          <span class="news-date">${fullDate(n.date)}</span>
+          <div class="news-text">${n.text}</div>
+          ${n.url ? `<a class="news-entry-link" href="${n.url}" target="_blank" rel="noopener noreferrer">Read source →</a>` : ''}
+        </div>
+      `).join('');
+    const filterBtns = ['All', ...months].map(m =>
+      `<button class="news-filter-btn${m==='All' ? ' active' : ''}" data-filter="${m}">${m}</button>`
+    ).join('');
+    const sourcesHTML = (h.sources || []).map(s =>
+      `<a class="news-source-link" href="${s.url}" target="_blank" rel="noopener noreferrer">↗ ${s.label}</a>`
+    ).join('');
+    const websiteChipsHTML = `
+      ${h.officialSite ? `<a class="website-chip official" href="${h.officialSite}" target="_blank" rel="noopener noreferrer">🌐 Official site</a>` : ''}
+      <a class="website-chip" href="https://finance.yahoo.com/quote/${h.sym}/" target="_blank" rel="noopener noreferrer">↗ Yahoo Finance</a>
+      <a class="website-chip" href="https://www.google.com/finance/quote/${h.sym}:NASDAQ" target="_blank" rel="noopener noreferrer">↗ Google Finance</a>
+      <a class="website-chip" href="https://www.cnbc.com/quotes/${h.sym}" target="_blank" rel="noopener noreferrer">↗ CNBC</a>
+      <a class="website-chip" href="https://finviz.com/quote.ashx?t=${h.sym}" target="_blank" rel="noopener noreferrer">↗ Finviz</a>
+      <a class="website-chip" href="https://www.tradingview.com/symbols/NASDAQ-${h.sym}/" target="_blank" rel="noopener noreferrer">↗ TradingView</a>
+    `;
+
+    return `
+    <div class="holding" id="h-${h.sym}">
+      <div class="holding-head" role="button" tabindex="0" aria-expanded="false" data-idx="${i}">
+        <div class="rank">${String(h.rank).padStart(2,'0')}</div>
+        <div class="holding-id">
+          <div class="holding-top">
+            <span class="ticker-sym">${h.sym}</span>
+            <span class="company-name">${h.name}</span>
+          </div>
+          <span class="tag">${h.tag}</span>
+        </div>
+        <div class="holding-price">
+          <div class="price-now" id="price-${h.sym}">${h.price}<span class="live-badge snap" id="badge-${h.sym}">SNAP</span></div>
+          <div class="price-trend ${h.trend}" id="trend-${h.sym}">${trendArrow(h.trend)} ${h.trendLabel}</div>
+        </div>
+        <div class="chev">⌄</div>
+      </div>
+      <div class="holding-body">
+        <div class="holding-body-inner">
+
+          <div class="website-row">${websiteChipsHTML}</div>
+
+          <div class="stat-row">
+            ${h.stats.map(s => `<div class="stat-box"><div class="v">${s[0]}</div><div class="k">${s[1]}</div></div>`).join('')}
+          </div>
+
+          <div class="meta-row">
+            <span class="meta-pill risk-${h.risk}">Risk: <strong>${h.riskLabel}</strong></span>
+            <span class="meta-pill ${upsideClass}" id="upsidepill-${h.sym}">To analyst target: <strong id="upside-${h.sym}">${upsideStr}</strong></span>
+            <span class="meta-pill">Target: <strong>$${h.target.toFixed(2)}</strong></span>
+          </div>
+
+          <div class="range-block">
+            <div class="range-label-row"><span>52-WK LOW $${h.low52.toFixed(2)}</span><span>52-WK HIGH $${h.high52.toFixed(2)}</span></div>
+            <div class="range-track">
+              <div class="range-target-marker" style="left:${targetPos}%;"></div>
+              <div class="range-fill-marker" id="marker-${h.sym}" style="left:${pos}%;"></div>
+            </div>
+            <div class="range-foot"><span id="currentlabel-${h.sym}">CURRENT $${h.priceNum.toFixed(2)}</span><span>&nbsp;</span></div>
+          </div>
+
+          <div class="decision-grid">
+            <div class="decision-box bull">
+              <h5>▲ BULL CASE</h5>
+              <p>${h.bull}</p>
+            </div>
+            <div class="decision-box bear">
+              <h5>▼ BEAR CASE</h5>
+              <p>${h.bear}</p>
+            </div>
+          </div>
+
+          <div class="holding-notes">
+            ${h.notes.map(n => `<p>${n}</p>`).join('')}
+          </div>
+
+          <div class="news-block">
+            <div class="news-head">
+              <h5>LIVE NEWS — ${h.sym} <span class="live-badge snap" id="newsbadge-${h.sym}">SNAPSHOT MODE</span></h5>
+            </div>
+            <div class="live-news-wrap" id="livenews-${h.sym}">
+              <div class="live-news-empty">Connect live data above to pull real-time headlines with direct article links for ${h.sym}.</div>
+            </div>
+
+            <div class="news-head" style="margin-top:6px;">
+              <h5>CURATED TIMELINE — ${h.sym}</h5>
+              <div class="news-filters">${filterBtns}</div>
+            </div>
+            <div class="news-list">${newsHTML}</div>
+            <div class="news-source-row">${sourcesHTML}</div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  `;
+  }).join('');
+
+  // Accordion behavior
+  document.querySelectorAll('.holding-head').forEach(head => {
+    const toggle = () => {
+      const card = head.closest('.holding');
+      const body = card.querySelector('.holding-body');
+      const isOpen = card.classList.contains('open');
+      if(isOpen){
+        body.style.maxHeight = null;
+        card.classList.remove('open');
+        head.setAttribute('aria-expanded','false');
+      } else {
+        card.classList.add('open');
+        head.setAttribute('aria-expanded','true');
+        body.style.maxHeight = body.scrollHeight + 'px';
+      }
+    };
+    head.addEventListener('click', toggle);
+    head.addEventListener('keydown', e => {
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); toggle(); }
+    });
+  });
+
+  // News filter behavior (per-card, doesn't affect accordion height calc issues since we recalc)
+  document.querySelectorAll('.holding').forEach(card => {
+    const btns = card.querySelectorAll('.news-filter-btn');
+    const entries = card.querySelectorAll('.news-entry');
+    btns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        btns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const filter = btn.dataset.filter;
+        entries.forEach(e => {
+          e.classList.toggle('hidden', filter !== 'All' && e.dataset.month !== filter);
+        });
+        // recalc open height
+        const body = card.querySelector('.holding-body');
+        if(card.classList.contains('open')){
+          body.style.maxHeight = body.scrollHeight + 'px';
+        }
+      });
+    });
+  });
+
+  // Open the top holding by default
+  document.querySelector('.holding-head').click();
+
+  // ---------- Charts ----------
+  Chart.defaults.font.family = "'IBM Plex Mono', monospace";
+  Chart.defaults.color = '#8A93A0';
+
+  const capChartInstance = new Chart(capCtx, {
+    type: 'bar',
+    data: {
+      labels: holdings.map(h => h.sym),
+      datasets: [{
+        data: holdings.map(h => h.capB),
+        backgroundColor: holdings.map(h => h.trend === 'down' ? '#FF5C5C' : h.trend === 'up' ? '#3ADC84' : '#FFB000'),
+        borderRadius: 2,
+        maxBarThickness: 34
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ' $' + ctx.raw.toLocaleString() + 'B market cap'
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'logarithmic',
+          grid: { color: '#262D35' },
+          ticks: { callback: v => (v >= 1000 ? '$' + (v/1000) + 'T' : '$' + v + 'B') }
+        },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+
+  const targetCtx = document.getElementById('targetChart');
+  const upsideData = holdings.map(h => +(((h.target - h.priceNum) / h.priceNum) * 100).toFixed(1));
+  const targetChartInstance = new Chart(targetCtx, {
+    type: 'bar',
+    data: {
+      labels: holdings.map(h => h.sym),
+      datasets: [{
+        data: upsideData,
+        backgroundColor: upsideData.map(v => v >= 0 ? '#3ADC84' : '#FF5C5C'),
+        borderRadius: 2,
+        maxBarThickness: 34
+      }]
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ' ' + (ctx.raw >= 0 ? '+' : '') + ctx.raw + '% to average target'
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: '#262D35' },
+          ticks: { callback: v => v + '%' }
+        },
+        y: { grid: { display: false } }
+      }
+    }
+  });
+
+  // ============================================================
+  // LIVE DATA ENGINE — Finnhub REST API
+  // Only functions when hosted with real internet access (not
+  // inside Claude's own artifact preview sandbox).
+  // ============================================================
+  let FINNHUB_KEY = null;
+  let pollHandle = null;
+  let newsPollHandle = null;
+  const POLL_MS = 15000; // quotes: 9 symbols every 15s ≈ 36 calls/min
+  const NEWS_POLL_MS = 60000; // news: 9 symbols every 60s ≈ 9 calls/min — combined ≈ 45/min, under Finnhub's free 60/min cap
+
+  const bySym = Object.fromEntries(holdings.map(h => [h.sym, h]));
+
+  function setStatus(connected, text){
+    document.getElementById('liveDot').classList.toggle('on', connected);
+    document.getElementById('liveStatusText').textContent = text;
+  }
+
+  async function fetchQuote(symbol){
+    const url = `https://finnhub.io/api/v1/quote?symbol=${encodeURIComponent(symbol)}&token=${encodeURIComponent(FINNHUB_KEY)}`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if(data.c === undefined || data.c === 0) throw new Error('No data for ' + symbol);
+    return data; // {c: current, h: high, l: low, o: open, pc: prevClose, d: change, dp: changePercent}
+  }
+
+  function isoDaysAgo(n){
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.toISOString().slice(0, 10);
+  }
+
+  async function fetchCompanyNews(symbol){
+    const from = isoDaysAgo(30);
+    const to = isoDaysAgo(0);
+    const url = `https://finnhub.io/api/v1/company-news?symbol=${encodeURIComponent(symbol)}&from=${from}&to=${to}&token=${encodeURIComponent(FINNHUB_KEY)}`;
+    const res = await fetch(url);
+    if(!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    if(!Array.isArray(data)) throw new Error('Unexpected news response for ' + symbol);
+    return data
+      .filter(a => a.headline && a.url)
+      .sort((a, b) => b.datetime - a.datetime)
+      .slice(0, 25);
+  }
+
+  function domainFromUrl(u){
+    try{ return new URL(u).hostname.replace(/^www\./, ''); }
+    catch(e){ return 'source'; }
+  }
+
+  function renderLiveNews(sym, articles){
+    const wrap = document.getElementById('livenews-' + sym);
+    const badge = document.getElementById('newsbadge-' + sym);
+    if(!wrap) return;
+    if(badge){ badge.textContent = 'LIVE · ' + articles.length + (articles.length === 25 ? '+' : '') + ' ARTICLES'; badge.className = 'live-badge live'; }
+
+    if(!articles || articles.length === 0){
+      wrap.innerHTML = `<div class="live-news-empty">No fresh headlines found for ${sym} in the last 30 days via Finnhub — try the website links above for current coverage.</div>`;
+      return;
+    }
+
+    wrap.innerHTML = articles.map(a => {
+      const date = new Date(a.datetime * 1000);
+      const dateStr = date.toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) +
+        ' · ' + date.toLocaleTimeString('en-US', {hour:'numeric', minute:'2-digit'});
+      // Full summary paragraph as provided by the API — no truncation
+      const summary = (a.summary && a.summary.trim()) ? a.summary.trim() : '';
+      const domain = a.source || domainFromUrl(a.url);
+      return `
+        <div class="live-news-item">
+          <div class="lni-top">
+            <span class="lni-source">${domain}</span>
+            <span>${dateStr}</span>
+          </div>
+          <a class="lni-headline" href="${a.url}" target="_blank" rel="noopener noreferrer">${a.headline}</a>
+          ${summary ? `<div class="lni-summary">${summary}</div>` : '<div class="lni-summary" style="font-style:italic; color:var(--muted);">No summary provided by source — click through for the full article.</div>'}
+          <a class="lni-link" href="${a.url}" target="_blank" rel="noopener noreferrer">Read full article ↗</a>
+        </div>
+      `;
+    }).join('');
+  }
+
+  async function fetchAllNews(){
+    const results = await Promise.allSettled(holdings.map(h => fetchCompanyNews(h.sym)));
+    results.forEach((r, i) => {
+      const sym = holdings[i].sym;
+      if(r.status === 'fulfilled'){
+        renderLiveNews(sym, r.value);
+      } else {
+        console.warn('News failed for', sym, r.reason);
+        const badge = document.getElementById('newsbadge-' + sym);
+        if(badge){ badge.textContent = 'NEWS UNAVAILABLE'; badge.className = 'live-badge snap'; }
+      }
+    });
+  }
+
+  function updateCardUI(sym, quote){
+    const h = bySym[sym];
+    if(!h) return;
+    const priceEl = document.getElementById('price-' + sym);
+    const badgeEl = document.getElementById('badge-' + sym);
+    const trendEl = document.getElementById('trend-' + sym);
+    const markerEl = document.getElementById('marker-' + sym);
+    const currentLabelEl = document.getElementById('currentlabel-' + sym);
+    const upsideEl = document.getElementById('upside-' + sym);
+    const upsidePillEl = document.getElementById('upsidepill-' + sym);
+    if(!priceEl) return;
+
+    const price = quote.c;
+    const changePct = quote.dp;
+    const isUp = changePct >= 0;
+
+    priceEl.childNodes[0].nodeValue = '$' + price.toFixed(2) + '  ';
+    if(badgeEl){ badgeEl.textContent = 'LIVE'; badgeEl.className = 'live-badge live'; }
+    if(trendEl){
+      trendEl.className = 'price-trend ' + (isUp ? 'up' : 'down');
+      trendEl.textContent = (isUp ? '▲ ' : '▼ ') + (isUp ? '+' : '') + changePct.toFixed(2) + '% today';
+    }
+    if(currentLabelEl){ currentLabelEl.textContent = 'CURRENT $' + price.toFixed(2); }
+
+    // Reposition marker within the existing 52wk low/high band
+    // (extend band on the fly if live price breaks out of the stored range)
+    const low = Math.min(h.low52, price);
+    const high = Math.max(h.high52, price);
+    const pos = Math.max(0, Math.min(100, ((price - low) / (high - low)) * 100));
+    if(markerEl) markerEl.style.left = pos + '%';
+
+    // Recompute upside to target with the live price
+    const upside = ((h.target - price) / price) * 100;
+    const upsideStr = (upside >= 0 ? '+' : '') + upside.toFixed(1) + '%';
+    if(upsideEl) upsideEl.textContent = upsideStr;
+    if(upsidePillEl) upsidePillEl.className = 'meta-pill ' + (upside >= 0 ? 'upside' : 'downside');
+
+    // Track the live price on the object so charts can use it
+    h._livePrice = price;
+  }
+
+  function refreshCharts(){
+    const newUpside = holdings.map(h => {
+      const p = h._livePrice || h.priceNum;
+      return +(((h.target - p) / p) * 100).toFixed(1);
+    });
+    targetChartInstance.data.datasets[0].data = newUpside;
+    targetChartInstance.data.datasets[0].backgroundColor = newUpside.map(v => v >= 0 ? '#3ADC84' : '#FF5C5C');
+    targetChartInstance.update();
+  }
+
+  async function fetchAllQuotes(){
+    setStatus(true, 'LIVE PRICES: REFRESHING…');
+    const results = await Promise.allSettled(holdings.map(h => fetchQuote(h.sym)));
+    let okCount = 0, failCount = 0;
+    results.forEach((r, i) => {
+      const sym = holdings[i].sym;
+      if(r.status === 'fulfilled'){
+        updateCardUI(sym, r.value);
+        okCount++;
+      } else {
+        failCount++;
+        console.warn('Quote failed for', sym, r.reason);
+      }
+    });
+    refreshCharts();
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString();
+    if(okCount > 0){
+      setStatus(true, `LIVE PRICES: CONNECTED (${okCount}/${holdings.length} tickers)`);
+      document.getElementById('liveMeta').innerHTML = `Last refreshed <strong>${timeStr}</strong> · next refresh in ${POLL_MS/1000}s · ${failCount ? failCount + ' ticker(s) failed to update (rate limit or symbol issue)' : 'all tickers OK'}`;
+    } else {
+      setStatus(false, 'LIVE PRICES: FAILED');
+      document.getElementById('liveMeta').innerHTML = `Could not reach Finnhub. This usually means the API key is invalid, or this page is running inside a sandbox (like Claude's own preview) that blocks outbound requests — host the file on GitHub Pages or similar and try again.`;
+    }
+  }
+
+  function startLive(key){
+    FINNHUB_KEY = key.trim();
+    if(!FINNHUB_KEY) return;
+    document.getElementById('connectBtn').style.display = 'none';
+    document.getElementById('disconnectBtn').style.display = 'inline-block';
+    document.getElementById('apiKeyInput').disabled = true;
+    fetchAllQuotes();
+    fetchAllNews();
+    pollHandle = setInterval(fetchAllQuotes, POLL_MS);
+    newsPollHandle = setInterval(fetchAllNews, NEWS_POLL_MS);
+    // Persist key in the URL hash only (no storage APIs) so the page can be bookmarked live
+    try{ history.replaceState(null, '', '#key=' + encodeURIComponent(FINNHUB_KEY)); }catch(e){}
+  }
+
+  function stopLive(){
+    if(pollHandle) clearInterval(pollHandle);
+    if(newsPollHandle) clearInterval(newsPollHandle);
+    pollHandle = null;
+    newsPollHandle = null;
+    FINNHUB_KEY = null;
+    document.getElementById('connectBtn').style.display = 'inline-block';
+    document.getElementById('disconnectBtn').style.display = 'none';
+    document.getElementById('apiKeyInput').disabled = false;
+    setStatus(false, 'LIVE PRICES: NOT CONNECTED');
+    document.getElementById('liveMeta').textContent = 'Live updates stopped — showing last known values.';
+    holdings.forEach(h => {
+      const badge = document.getElementById('newsbadge-' + h.sym);
+      if(badge){ badge.textContent = 'SNAPSHOT MODE'; badge.className = 'live-badge snap'; }
+      const wrap = document.getElementById('livenews-' + h.sym);
+      if(wrap){ wrap.innerHTML = `<div class="live-news-empty">Connect live data above to pull real-time headlines with direct article links for ${h.sym}.</div>`; }
+    });
+    try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+  }
+
+  document.getElementById('connectBtn').addEventListener('click', () => {
+    const val = document.getElementById('apiKeyInput').value;
+    if(val.trim()) startLive(val);
+  });
+  document.getElementById('disconnectBtn').addEventListener('click', stopLive);
+  document.getElementById('apiKeyInput').addEventListener('keydown', e => {
+    if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('connectBtn').click(); }
+  });
+
+  // Auto-load key from URL hash if present, e.g. #key=abc123
+  (function initFromHash(){
+    const params = new URLSearchParams(location.hash.slice(1));
+    const hashKey = params.get('key');
+    if(hashKey){
+      document.getElementById('apiKeyInput').value = hashKey;
+      startLive(hashKey);
+    }
+  })();
+</script>
+
+</body>
+</html>
